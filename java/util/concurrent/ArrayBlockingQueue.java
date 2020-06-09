@@ -321,6 +321,7 @@ public class ArrayBlockingQueue<E> extends AbstractQueue<E>
      *
      * @throws NullPointerException if the specified element is null
      */
+    //添加元素到队列，同时会返回元素是否插入成功的状态，如果成功则返回 true
     public boolean offer(E e) {
         checkNotNull(e);
         final ReentrantLock lock = this.lock;
@@ -343,6 +344,10 @@ public class ArrayBlockingQueue<E> extends AbstractQueue<E>
      *
      * @throws InterruptedException {@inheritDoc}
      * @throws NullPointerException {@inheritDoc}
+     */
+    /**
+     * 当阻塞队列满了以后，生产者继续通过 put添加元素，队列会一直阻塞生产者线程，知道队列可用
+     * offer(e,time,unit) ：当阻塞队列满了以后继续添加元素，生产者线程会被阻塞指定时间，如果超时，则线程直接退出
      */
     public void put(E e) throws InterruptedException {
         checkNotNull(e);

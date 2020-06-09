@@ -472,7 +472,7 @@ public class ThreadLocal<T> {
                     e.value = value;
                     return;
                 }
-            //如果key为null,用新key、value覆盖，同时清理历史key=null的陈旧数据(弱引用)
+            //如果key为null,用新key、value覆盖，同时清理历史key=null的陈旧数据(key为弱引用,已经被GC回收)
                 if (k == null) {
                     replaceStaleEntry(key, value, i);
                     return;
@@ -530,14 +530,17 @@ public class ThreadLocal<T> {
             // incremental rehashing due to garbage collector freeing
             // up refs in bunches (i.e., whenever the collector runs).
             int slotToExpunge = staleSlot;
+            //向前扫描，查找最前一个无效的slot
             for (int i = prevIndex(staleSlot, len);
                  (e = tab[i]) != null;
                  i = prevIndex(i, len))
+                //通过循环遍历，可以定位到最前面一个无效的slot
                 if (e.get() == null)
                     slotToExpunge = i;
 
             // Find either the key or trailing null slot of run, whichever
             // occurs first
+            //从i开始往后一直遍历到数组最后一个Entry（线性探索）
             for (int i = nextIndex(staleSlot, len);
                  (e = tab[i]) != null;
                  i = nextIndex(i, len)) {
@@ -548,15 +551,19 @@ public class ThreadLocal<T> {
                 // The newly stale slot, or any other stale slot
                 // encountered above it, can then be sent to expungeStaleEntry
                 // to remove or rehash all of the other entries in run.
+                //找到匹配的key以后
                 if (k == key) {
+                    //更新对应slot的value值
                     e.value = value;
-
+                    //与无效的sloat进行交换
                     tab[i] = tab[staleSlot];
                     tab[staleSlot] = e;
 
                     // Start expunge at preceding stale entry if it exists
+                    //如果最早的一个无效的slot和当前的staleSlot相等，则从i作为清理的起点
                     if (slotToExpunge == staleSlot)
                         slotToExpunge = i;
+                    //从slotToExpunge开始做一次连续的清理
                     cleanSomeSlots(expungeStaleEntry(slotToExpunge), len);
                     return;
                 }
@@ -564,15 +571,18 @@ public class ThreadLocal<T> {
                 // If we didn't find stale entry on backward scan, the
                 // first stale entry seen while scanning for key is the
                 // first still present in the run.
+                //如果当前的slot已经无效，并且向前扫描过程中没有无效slot，则更新slotToExpunge为当 前位置
                 if (k == null && slotToExpunge == staleSlot)
                     slotToExpunge = i;
             }
 
             // If key not found, put new entry in stale slot
+            //如果key对应的value在entry中不存在，则直接放一个新的entry
             tab[staleSlot].value = null;
             tab[staleSlot] = new Entry(key, value);
 
             // If there are any other stale entries in run, expunge them
+            //如果有任何一个无效的slot，则做一次清理
             if (slotToExpunge != staleSlot)
                 cleanSomeSlots(expungeStaleEntry(slotToExpunge), len);
         }

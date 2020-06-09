@@ -91,7 +91,9 @@ public abstract class AbstractQueue<E>
      * @throws IllegalArgumentException if some property of this element
      *         prevents it from being added to this queue
      */
+    //添加元素到队列中，如果队列满了，继续插入元素会报错，IllegalStateException。
     public boolean add(E e) {
+        //队列满了返回false
         if (offer(e))
             return true;
         else
