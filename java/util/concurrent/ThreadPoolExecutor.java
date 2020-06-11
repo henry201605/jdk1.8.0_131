@@ -1118,10 +1118,10 @@ public class ThreadPoolExecutor extends AbstractExecutorService {
                 decrementWorkerCount();
                 return null;
             }
-
+//
             int wc = workerCountOf(c);
 
-            // Are workers subject to culling?
+            // Are workers subject  to culling?
             boolean timed = allowCoreThreadTimeOut || wc > corePoolSize;
 
             if ((wc > maximumPoolSize || (timed && timedOut))
