@@ -216,9 +216,10 @@ public final class ServiceLoader<S>
      */
     public void reload() {
         providers.clear();
+        /** * 直接实例化一个懒加载的迭代器 */
         lookupIterator = new LazyIterator(service, loader);
     }
-
+    /** * 也没有什么逻辑,直接调用reload */
     private ServiceLoader(Class<S> svc, ClassLoader cl) {
         service = Objects.requireNonNull(svc, "Service interface cannot be null");
         loader = (cl == null) ? ClassLoader.getSystemClassLoader() : cl;
@@ -319,7 +320,7 @@ public final class ServiceLoader<S>
     }
 
     // Private inner class implementing fully-lazy provider lookup
-    //
+    // 就是等到调用hasNext()再查找服务, 调用next()才实例化服务类.
     private class LazyIterator
         implements Iterator<S>
     {
@@ -336,15 +337,21 @@ public final class ServiceLoader<S>
         }
 
         private boolean hasNextService() {
+            // nextName不为空,说明加载过了,而且服务不为空
             if (nextName != null) {
                 return true;
             }
+            // configs就是所有的实现类文件名字
             if (configs == null) {
                 try {
+                    // PREFIX是 /META-INF/services
+                    // service.getName() 是接口的全限定名称
                     String fullName = PREFIX + service.getName();
+                    // loader == null, 说明是bootstrap类加载器
                     if (loader == null)
                         configs = ClassLoader.getSystemResources(fullName);
                     else
+                        // 加载该目录下的所有文件资源
                         configs = loader.getResources(fullName);
                 } catch (IOException x) {
                     fail(service, "Error locating configuration files", x);
@@ -352,8 +359,10 @@ public final class ServiceLoader<S>
             }
             while ((pending == null) || !pending.hasNext()) {
                 if (!configs.hasMoreElements()) {
+                // 该目录下什么文件都没有
                     return false;
                 }
+                //就是判断一下configs.nextElement()的格式是不是对的
                 pending = parse(service, configs.nextElement());
             }
             nextName = pending.next();
@@ -361,23 +370,28 @@ public final class ServiceLoader<S>
         }
 
         private S nextService() {
+            // 校验一下
             if (!hasNextService())
                 throw new NoSuchElementException();
             String cn = nextName;
             nextName = null;
             Class<?> c = null;
             try {
+                // 尝试一下是否能加载该类
                 c = Class.forName(cn, false, loader);
             } catch (ClassNotFoundException x) {
                 fail(service,
                      "Provider " + cn + " not found");
             }
+            // 是不是service的子类,或者同一个类
             if (!service.isAssignableFrom(c)) {
                 fail(service,
                      "Provider " + cn  + " not a subtype");
             }
             try {
+                // 实例化这个类, 然后向上转一下
                 S p = service.cast(c.newInstance());
+                // 缓存起来,避免重复加载
                 providers.put(cn, p);
                 return p;
             } catch (Throwable x) {
@@ -504,6 +518,7 @@ public final class ServiceLoader<S>
      *
      * @return A new service loader
      */
+    /* *这个也没有什么逻辑,直接调用构造方法 */
     public static <S> ServiceLoader<S> load(Class<S> service,
                                             ClassLoader loader)
     {
@@ -533,6 +548,7 @@ public final class ServiceLoader<S>
      *
      * @return A new service loader
      */
+//    入口, 获取一下当前类的类加载器,然后调用下一个静态方法
     public static <S> ServiceLoader<S> load(Class<S> service) {
         ClassLoader cl = Thread.currentThread().getContextClassLoader();
         return ServiceLoader.load(service, cl);

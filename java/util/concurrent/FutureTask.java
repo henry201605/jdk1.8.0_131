@@ -90,13 +90,20 @@ public class FutureTask<V> implements RunnableFuture<V> {
      * NEW -> INTERRUPTING -> INTERRUPTED
      */
     private volatile int state;
-    private static final int NEW          = 0;
-    private static final int COMPLETING   = 1;
-    private static final int NORMAL       = 2;
-    private static final int EXCEPTIONAL  = 3;
-    private static final int CANCELLED    = 4;
+    private static final int NEW = 0; // NEW 新建状态，表示这个 FutureTask还没有开始运行
+    // COMPLETING 完成状态， 表示 FutureTask 任务已经计算完毕了
+    // 但是还有一些后续操作，例如唤醒等待线程操作，还没有完成。
+    private static final int COMPLETING = 1;
+    // FutureTask 任务完结，正常完成，没有发生异常
+    private static final int NORMAL = 2;
+    // FutureTask 任务完结，因为发生异常。
+    private static final int EXCEPTIONAL = 3;
+    // FutureTask 任务完结，因为取消任务
+    private static final int CANCELLED = 4;
+    // FutureTask 任务完结，也是取消任务，不过发起了中断运行任务线程的中断请求
     private static final int INTERRUPTING = 5;
-    private static final int INTERRUPTED  = 6;
+    // FutureTask 任务完结，也是取消任务，已经完成了中断运行任务线程的中断请求
+    private static final int INTERRUPTED = 6;
 
     /** The underlying callable; nulled out after running */
     private Callable<V> callable;
@@ -114,11 +121,14 @@ public class FutureTask<V> implements RunnableFuture<V> {
      */
     @SuppressWarnings("unchecked")
     private V report(int s) throws ExecutionException {
-        Object x = outcome;
-        if (s == NORMAL)
+        Object x = outcome;//表示 call 的返回值
+        if (s == NORMAL) // 表示正常完结状态，所以返回结果值
             return (V)x;
+        // 大于或等于 CANCELLED，都表示手动取消 FutureTask 任务，
+        // 所以抛出 CancellationException 异常
         if (s >= CANCELLED)
             throw new CancellationException();
+        // 否则就是运行过程中，发生了异常，这里就抛出这个异常
         throw new ExecutionException((Throwable)x);
     }
 
@@ -185,10 +195,15 @@ public class FutureTask<V> implements RunnableFuture<V> {
     /**
      * @throws CancellationException {@inheritDoc}
      */
+    /**
+     * get 方法就是阻塞获取线程执行结果，这里主要做了两个事情
+     * 1. 判断当前的状态，如果状态小于等于 COMPLETING，表示 FutureTask 任务还没有完结，所以调用 awaitDone 方法，让当前线程等待。
+     * 2. report 返回结果值或者抛出异常
+     */
     public V get() throws InterruptedException, ExecutionException {
         int s = state;
         if (s <= COMPLETING)
-            s = awaitDone(false, 0L);
+            s = awaitDone(false, 0L);//如果当前的结果还没有被执行完，把当前线程线程和插入到等待队列
         return report(s);
     }
 
@@ -253,25 +268,28 @@ public class FutureTask<V> implements RunnableFuture<V> {
     }
 
     public void run() {
+        // 如果状态 state 不是 NEW，或者设置 runner 值失败
+        // 表示有别的线程在此之前调用 run 方法，并成功设置了 runner 值
+        // 保证了只有一个线程可以运行 try 代码块中的代码。
         if (state != NEW ||
             !UNSAFE.compareAndSwapObject(this, runnerOffset,
                                          null, Thread.currentThread()))
             return;
         try {
             Callable<V> c = callable;
-            if (c != null && state == NEW) {
+            if (c != null && state == NEW) {//只有 c 不为 null 且状态 state 为 NEW 的情况
                 V result;
                 boolean ran;
                 try {
-                    result = c.call();
-                    ran = true;
+                    result = c.call();//调用 callable 的 call 方法，并获得返回结果
+                    ran = true;//运行成功
                 } catch (Throwable ex) {
                     result = null;
                     ran = false;
-                    setException(ex);
+                    setException(ex); //设置异常结果，
                 }
                 if (ran)
-                    set(result);
+                    set(result);//设置结果
             }
         } finally {
             // runner must be non-null until state is settled to
@@ -397,33 +415,39 @@ public class FutureTask<V> implements RunnableFuture<V> {
         throws InterruptedException {
         final long deadline = timed ? System.nanoTime() + nanos : 0L;
         WaitNode q = null;
-        boolean queued = false;
+        boolean queued = false; // 节点是否已添加
         for (;;) {
+            // 如果当前线程中断标志位是 true，
+            // 那么从列表中移除节点 q，并抛出 InterruptedException 异 常
             if (Thread.interrupted()) {
                 removeWaiter(q);
                 throw new InterruptedException();
             }
 
             int s = state;
-            if (s > COMPLETING) {
+            if (s > COMPLETING) {// 当状态大于 COMPLETING 时，表示 FutureTask 任务已结束
                 if (q != null)
-                    q.thread = null;
+                    q.thread = null;// 将节点 q 线程设置为 null，因为线程没有阻塞等待
                 return s;
-            }
+            }// 表示还有一些后序操作没有完成，那么当前线程让出执行权
             else if (s == COMPLETING) // cannot time out yet
                 Thread.yield();
+                //表示状态是 NEW，那么就需要将当前线程阻塞等待。
+                // 就是将它插入等待线程链表中，
             else if (q == null)
                 q = new WaitNode();
             else if (!queued)
+                // 使用 CAS 函数将新节点添加到链表中，如果添加失败，那么queued 为 false，
+            // 下次循环时，会继续添加，知道成功
                 queued = UNSAFE.compareAndSwapObject(this, waitersOffset,
                                                      q.next = waiters, q);
-            else if (timed) {
+            else if (timed) {// timed 为 true 表示需要设置超时
                 nanos = deadline - System.nanoTime();
                 if (nanos <= 0L) {
                     removeWaiter(q);
                     return state;
                 }
-                LockSupport.parkNanos(this, nanos);
+                LockSupport.parkNanos(this, nanos);// 让当前线程等待 nanos 时间
             }
             else
                 LockSupport.park(this);

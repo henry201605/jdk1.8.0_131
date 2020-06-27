@@ -2001,7 +2001,7 @@ BlockingQueue
                 unlinkCancelledWaiters();
                 t = lastWaiter;
             }
-            //将当前线程分装成一个node，加到等待多了尾部
+            //将当前线程分装成一个node，加到等待队列尾部
             Node node = new Node(Thread.currentThread(), Node.CONDITION);
             if (t == null)
                 firstWaiter = node;

@@ -403,10 +403,13 @@ public abstract class ClassLoader {
     {
         synchronized (getClassLoadingLock(name)) {
             // First, check if the class has already been loaded
+            //1、首先，检查该类是否已经被加载，如果从JVM缓存中找到该类，则直接返回
             Class<?> c = findLoadedClass(name);
             if (c == null) {
                 long t0 = System.nanoTime();
                 try {
+                    // 遵循双亲委派的模型，首先会通过递归从父加载器开始找，
+                    // 直到父类加载器是BootstrapClassLoader为止
                     if (parent != null) {
                         c = parent.loadClass(name, false);
                     } else {
