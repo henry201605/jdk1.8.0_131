@@ -61,7 +61,7 @@ package java.util;
  */
 public class Observable {
     private boolean changed = false;
-    private Vector<Observer> obs;
+    private Vector<Observer> obs;// 观察者列表---vector 线程安全
 
     /** Construct an Observable with zero Observers. */
 
@@ -77,7 +77,7 @@ public class Observable {
      *
      * @param   o   an observer to be added.
      * @throws NullPointerException   if the parameter o is null.
-     */
+     *///添加观察者  加锁
     public synchronized void addObserver(Observer o) {
         if (o == null)
             throw new NullPointerException();
@@ -90,7 +90,7 @@ public class Observable {
      * Deletes an observer from the set of observers of this object.
      * Passing <CODE>null</CODE> to this method will have no effect.
      * @param   o   the observer to be deleted.
-     */
+     */ // 删除观察者
     public synchronized void deleteObserver(Observer o) {
         obs.removeElement(o);
     }
@@ -110,7 +110,7 @@ public class Observable {
      * @see     java.util.Observable#clearChanged()
      * @see     java.util.Observable#hasChanged()
      * @see     java.util.Observer#update(java.util.Observable, java.lang.Object)
-     */
+     *///通知观察者， 回调 观察者的 update（）方法
     public void notifyObservers() {
         notifyObservers(null);
     }
@@ -136,6 +136,8 @@ public class Observable {
          */
         Object[] arrLocal;
 
+        //加锁，确保对‘changed’变量的验证是原子操作
+        //加在方法块上，没有加在方法上，是为了减少锁的粒度，提高并发性，在线程A执行完代码块后，获取到arrLocal，继续执行后续的代码，线程B可以直接进入加锁的代码块中继续执行，因为并未对对象obs加锁
         synchronized (this) {
             /* We don't want the Observer doing callbacks into
              * arbitrary code while holding its own Monitor.
@@ -151,12 +153,12 @@ public class Observable {
              */
             if (!changed)
                 return;
-            arrLocal = obs.toArray();
-            clearChanged();
+            arrLocal = obs.toArray(); //获取所有observer(观察者)，vector转换成数组
+            clearChanged();//将change设置为false
         }
-
+        //遍历所有的观察者
         for (int i = arrLocal.length-1; i>=0; i--)
-            ((Observer)arrLocal[i]).update(this, arg);
+            ((Observer)arrLocal[i]).update(this, arg);//回调观察者中的Observer#update()方法
     }
 
     /**

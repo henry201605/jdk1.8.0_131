@@ -154,15 +154,20 @@ public class ReentrantLock implements Lock, java.io.Serializable {
             return false;
         }
 
+        //释放锁
         protected final boolean tryRelease(int releases) {
+            //同一个线程每释放一次锁state就减1
             int c = getState() - releases;
             if (Thread.currentThread() != getExclusiveOwnerThread())
                 throw new IllegalMonitorStateException();
+            //锁释放标志
             boolean free = false;
+            //锁state=0时才真正释放掉锁，将锁持有线程设置为null
             if (c == 0) {
                 free = true;
                 setExclusiveOwnerThread(null);
             }
+            //更新锁的状态(不需要CAS操作，因为释放锁操作是已经获得锁的情况下进行的)
             setState(c);
             return free;
         }
@@ -210,11 +215,15 @@ public class ReentrantLock implements Lock, java.io.Serializable {
         /**
          * Performs lock.  Try immediate barge, backing up to normal
          * acquire on failure.
+        *
          */
         final void lock() {
+            //非公平锁只要加锁，当前线程就会去竞争锁state,通过compareAndSetState()尝试锁的竞争
             if (compareAndSetState(0, 1))
+                //获取锁成功，设置锁拥有的线程
                 setExclusiveOwnerThread(Thread.currentThread());
             else
+                //获取失败
                 acquire(1);
         }
 
@@ -228,6 +237,7 @@ public class ReentrantLock implements Lock, java.io.Serializable {
      */
     static final class FairSync extends Sync {
         private static final long serialVersionUID = -3000897897090466540L;
+
 
         final void lock() {
             acquire(1);
@@ -289,6 +299,12 @@ public class ReentrantLock implements Lock, java.io.Serializable {
      * current thread becomes disabled for thread scheduling
      * purposes and lies dormant until the lock has been acquired,
      * at which time the lock hold count is set to one.
+     */
+    //ReentrantLock加锁时，获取锁的入口是调用抽象类sync里面的方法。sync的具体实现在ReentrantLock构造时已经指定实例：
+    /**
+     * NofairSync(非公平锁) 或 FailSync(公平锁)区别：
+     *   1、非公平锁在获取锁的时候，会先通过 CAS 进行抢占，而公平锁则不会；
+     *  2、hasQueuedPredecessors（），判断阻塞队列中是否存在
      */
     public void lock() {
         sync.lock();
@@ -463,6 +479,7 @@ public class ReentrantLock implements Lock, java.io.Serializable {
      *         hold this lock
      */
     public void unlock() {
+        //将锁的状态state减1
         sync.release(1);
     }
 

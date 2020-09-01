@@ -572,8 +572,10 @@ public abstract class AbstractQueuedSynchronizer
      * @return {@code true} if successful. False return indicates that the actual
      *         value was not equal to the expected value.
      */
+//(2）使用CAS进行获取锁的状态，stateOffset是AQS里锁状态state的偏移地址
     protected final boolean compareAndSetState(int expect, int update) {
         // See below for intrinsics setup to support this
+        //原子性操作：通过cas乐观锁的方式来做比较并替换。如果当前内存中的state的值和预期值expect相等，则替换为update。更新成功返回true，否则返回false。
         return unsafe.compareAndSwapInt(this, stateOffset, expect, update);
     }
 
@@ -602,7 +604,7 @@ public abstract class AbstractQueuedSynchronizer
                     tail = head;
             } else {
                 node.prev = t;
-                // tail不为空,将新节点入队
+                // tail不为空,就将node节点追加到AQS同步队列的尾部
                 if (compareAndSetTail(t, node)) {
                     t.next = node;
                     return t;
@@ -663,6 +665,7 @@ public abstract class AbstractQueuedSynchronizer
          * fails or if status is changed by waiting thread.
          */
         //如果状态为负(即,可能需要信号)尝试在预期的信令中清除。如果这失败或者如果状态通过等待线程而改变,则是OK。
+        //获取节点的等待状态
         int ws = node.waitStatus;
         if (ws < 0)
             compareAndSetWaitStatus(node, ws, 0);
@@ -687,6 +690,7 @@ public abstract class AbstractQueuedSynchronizer
                 if (t.waitStatus <= 0)
                     s = t;
         }
+        //unpark唤醒下一个线程
         if (s != null)
             LockSupport.unpark(s.thread);
     }
@@ -903,14 +907,15 @@ public abstract class AbstractQueuedSynchronizer
     static void selfInterrupt() {
         Thread.currentThread().interrupt();
     }
-BlockingQueue
     /**
      * Convenience method to park and then check if interrupted
-     *
+     *阻塞当前线程，等待唤醒的时候再检测中断的标志
      * @return {@code true} if interrupted
      */
     private final boolean parkAndCheckInterrupt() {
+        //park阻塞当前node线程，等待unpark唤醒
         LockSupport.park(this);
+        //线程被唤醒时，再判断是否是中断状态
         return Thread.interrupted();
     }
 
@@ -1357,9 +1362,13 @@ BlockingQueue
      * @return the value returned from {@link #tryRelease}
      */
     public final boolean release(int arg) {
+        //尝试释放锁state
         if (tryRelease(arg)) {
+            //如果释放锁成功，唤醒park的线程
             Node h = head;
+            //如果head是初始化节点时，不需要唤醒其他线程
             if (h != null && h.waitStatus != 0)
+                //通过unpark唤醒一个阻塞线程
                 unparkSuccessor(h);
             return true;
         }

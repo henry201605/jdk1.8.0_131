@@ -955,6 +955,7 @@ class Thread implements Runnable {
      * @see #isInterrupted()
      * @revised 6.0
      */
+    //内部实现是调用的当前线程的isInterrupted()，并且会重置当前线程的中断状态
     public static boolean interrupted() {
         return currentThread().isInterrupted(true);
     }
@@ -972,6 +973,7 @@ class Thread implements Runnable {
      * @see     #interrupted()
      * @revised 6.0
      */
+    //是调用该方法的对象所表示的那个线程的isInterrupted()，不会重置当前线程的中断状态
     public boolean isInterrupted() {
         return isInterrupted(false);
     }
